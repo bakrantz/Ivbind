@@ -1,0 +1,26 @@
+#LOOP to format BINS worksheets after import from PERL
+LOOP(ii,0,20) { 
+%K = BIN$(ii);
+%K!wks.col3.name$="I";
+%K!wks.col4.type=3;
+%K!wks.col6.type=3;
+%K!wks.col8.type=3;
+%K!wks.col10.type=3;
+  LOOP(jj,1,11) { %K!wks.col$(jj).width=12; };
+win -i %K;
+};
+
+#LOOP to format FIT worksheets after import from PERL
+LOOP(ii,0,20) { 
+%K = FIT$(ii);
+%K!wks.col3.type=3;
+  LOOP(jj,1,5) { %K!wks.col$(jj).width=10; };
+win -i %K;
+};
+
+#Format of the MASTER worksheet after import from PERL
+%K=MASTER;
+%K!wks.col4.type=3;
+%K!wks.col6.type=3;
+%K!wks.col9.name$="DURBINWATSON";
+LOOP(jj,1,9) { %K!wks.col$(jj).width=12; };

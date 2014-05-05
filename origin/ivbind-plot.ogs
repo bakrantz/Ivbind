@@ -1,0 +1,105 @@
+#Script to plot the FIT worksheets in GRAPH windows
+if("%P"=="") %P=PA WT;
+if("%Q"=="") %Q=L-Trp;
+if(ph==0/0) ph=5.6; 
+getn (PA) %%P
+(PEPTIDE) %%Q
+(pH) ph
+(Parameters);
+
+LOOP(ii,0,20) {
+ %K=FIT$(ii);
+#get info from master
+jj = ii + 1;
+volt=MASTER_V[jj];
+volt=round(volt,1);
+slope=MASTER_SLOPE[jj];
+slope=round(slope,2);
+slopeerr=MASTER_SLOPEERR[jj];
+slopeerr=round(slopeerr,2);
+intval=MASTER_INT[jj];
+intval=round(intval,2);
+interr=MASTER_INTERR[jj];
+interr=round(interr,2);
+rsquared=MASTER_RSQUARED[jj];
+%T=MASTER_FILE[jj]$;
+ win -t plot ORIGINRESIDUE;
+ layer -s 1;
+ layer -i %K_LOGQ;
+ layer -i %K_LOGQERR;
+ layer -i %K_FIT;
+ layer -g;
+ layer -at;
+ xb.text$="Log %Q /nM";
+ yl.text$="Log fo/(1-fo)";
+ title.text$=Hill Plot Bin$(ii) at $(volt) mV for %P and %Q at pH $(ph);
+parms.text$=Linear Fit of %T
+R^2	$(rsquared)
+slope	$(slope) ± $(slopeerr)	    	    
+intercept	$(intval) ± $(interr);
+legend;
+LEGEND.X=2.753654;
+LEGEND.Y=1.308479; 
+layer -s 2; 
+layer -i %K_RESIDUE;
+layer -at;
+win -r %H GRAPH$(ii);
+win -i %H;
+};
+
+#Graph Hill Coefficients
+ win -t plot ORIGINIV;
+ layer -s 1;
+ layer -i MASTER_SLOPE;
+ layer -i MASTER_SLOPEERR;
+ set MASTER_SLOPE -k 2;
+ set MASTER_SLOPE -kf 1;
+ set MASTER_SLOPE -l 0;
+ xb.text$="Voltage (mV)";
+ yl.text$="Hill Coefficient";
+ title.text$=Hill coefficients vs Voltage for %P and %Q at pH $(ph);
+ legend;
+ layer.X.from=30;
+ layer.X.to=-90;
+ layer.X.inc=20;
+ layer.Y.from=-0.5;
+ layer.Y.to=-2.5;
+ layer.Y.inc=-0.5;
+ layer.X.label.divideBy = -1;
+ layer.Y.label.divideBy = -1;
+ layer -a;
+
+#Graph -Log Kdapp versus Voltage
+ win -t plot ORIGINIV;
+ layer -s 1;
+ layer -i MASTER_INT;
+ layer -i MASTER_INTERR;
+ set MASTER_INT -k 2;
+ set MASTER_INT -kf 1;
+ set MASTER_INT -l 0;
+ xb.text$=Voltage (mV);
+ yl.text$=-Log K\-(D)app \/nM;
+ title.text$=Log KD-app versus Voltage for %P and %Q at pH $(ph);
+ legend;
+ layer.X.from=30;
+ layer.X.to=-90;
+ layer.X.inc=20;
+ layer.X.label.divideBy = -1;
+ layer -a;
+
+#Graph R-SQUARED versus Voltage
+ win -t plot ORIGINIV;
+ layer -s 1;
+ layer -i MASTER_RSQUARED;
+ set MASTER_RSQUARED -k 2;
+ set MASTER_RSQUARED -kf 1;
+ set MASTER_RSQUARED -l 0;
+ xb.text$=Voltage (mV);
+ yl.text$=R-Squared;
+ title.text$=R-Squared versus Voltage for %P and %Q at pH $(ph);
+ legend;
+ layer.X.from=30;
+ layer.X.to=-90;
+ layer.X.inc=20;
+ layer.X.label.divideBy = -1;
+ layer -a;
