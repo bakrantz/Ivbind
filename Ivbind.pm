@@ -6,6 +6,7 @@
 ##############   Module to manipulate current-voltage binding experiments  ############
 #######################################################################################
 package Ivbind;
+$VERSION = "0.2";
 ################################### THE CONSTRUCTOR ###################################
 sub new {
   my $proto                                 = shift;
@@ -35,6 +36,9 @@ sub new {
      $self -> {EXPERIMENT_KEYS}             = [];        #Key list of hoh made in the order of appearance from the experiment file
      $self -> {VOLTAGE_BINS}                = [];        #List of voltages used in the IV voltage scan
      $self -> {ATF_COLUMNS}                 = [qw(V I CONC)];  #Some column constants used to process Axon Text File (ATF) derived Hohs
+
+     my %args = @_; #Dump arguments into hash if provided
+     while (my ($attribute, $value) = each %args) { $self -> {uc($attribute)} = $value };
 
   return bless($self, $package);                         #return thy self
 }
@@ -74,20 +78,50 @@ sub open_experiment_file {
   return $self
 }
 
-sub open_bins {
+#requires a list of directories where the bins reside
+#merges different experiments together effectively
+sub merge_bin_dirs {
+ my ($self, $dirs, $delimiter) = @_;
+ die "No directories given in merge_bins, aborting $! $0" unless scalar(@$dirs);
+ $delimiter = delimiter($self) unless $delimiter;
+ die "No delimiter set in merge_bins, aborting $! $0" unless $delimiter;
+ my ($all_bins, $merged, $i, $dir_num) = ([], {}, 0, 0);
+ foreach my $dir (@$dirs) { 
+   open_bin_dir($self, $dir, $delimiter);
+   $all_bins -> [ $i++ ] = +{ bin_data($self) };
+ };
+ foreach my $bins (@$all_bins) {
+   foreach my $bin (keys(%$bins)) {
+     my $row = 0;     
+     foreach my $key (keys(%{ $bins -> {$bin} })) {
+       #to avoid key collisions
+       $merged -> {$bin} -> {'DIR'.$dir_num.'ROW'.$row++} = $bins -> {$bin} -> {$key};
+     };
+   };
+   $dir_num++;
+ };
+ bin_data($self, %$merged);
+ return $self
+}
+
+sub open_bin_dir {
   use Hoh;
-  my ($self, $index_i, $index_j, $ext) = @_; 
+  my ($self, $dir, $delimiter) = @_; 
   $delimiter = delimiter($self) unless $delimiter;
-  die "No delimiter set in open_experiment_file, aborting $! $0" unless $delimiter;
-  $ext = bin_file_extension($self) unless $ext;
+  die "No delimiter set in open_bins, aborting $! $0" unless $delimiter;
   my $bin_data = {}; #hohoh to stuff all the bins
-  my $prefix = 'BIN'; #force to BIN for compatibility
-  foreach my $i ($index_i..$index_j) {
+  $dir =~ s!/*$!/! unless ($dir eq ''); #be sure single trailing slash is in place
+  my @files;
+  opendir (DIR, $dir) or die $!;
+    while (my $file = readdir(DIR)) { push @files, $file if ($file =~ /^BIN\d+\./) };
+  closedir(DIR);
+  foreach my $file (@files) {
+    my ($i) = $file =~ m/^BIN(\d+)\./; #get the BIN index from the filename
     my $bin_hoh  =  Hoh->new(); #open exp file as hoh
        $bin_hoh  -> delimiter(delimiter($self, $delimiter));
        $bin_hoh  -> generate_keys(1);
-       $bin_hoh  -> load($prefix.$i.bin_file_extension($self, $ext));
-       $bin_data -> {$prefix.$i} = +{ $bin_hoh -> hoh }; #Key does not have extension
+       $bin_hoh  -> load($dir.$file);
+       $bin_data -> { 'BIN'.$i } = +{ $bin_hoh -> hoh }; #Key does not have extension
   };
   bin_data($self, %$bin_data);
   return $self
@@ -147,6 +181,31 @@ sub extract_bin_data {
      $bin_hoh -> print_order('V','VERR','I','IERR','CONC','CONCERR');
      $bin_hoh -> save_binned_datasets;
   bin_data($self, ($bin_hoh -> bin_data));
+  return $self
+}
+
+# Remove numerical data in the bins satisfying $col with $values criteria 
+# where $col is a scalar and $values is an array ref.
+# The $bin_list are the list of bins (keys to bin hash of hohs) that will be purged
+# If no bin_list is given, then all bins are purged of matches to $col and $values. 
+# Example bin_list: [ qw(BIN0 BIN1 BIN2) ]
+sub remove {
+  my ($self, $col, $values, $bin_list) = @_; 
+  my $bins = +{ bin_data($self) };
+  @$bin_list = keys(%$bins) unless scalar(@$bin_list);
+  foreach my $binkey (@$bin_list) {
+    my $bin = $bins ->{ $binkey };
+    foreach my $rowkey (keys(%$bin)) {
+      my $row = $bin -> { $rowkey };
+      VALUEMATCH: foreach my $value (@$values) {
+        if ($row -> { $col } == $value) { 
+          delete $bins -> { $binkey } -> { $rowkey }; 
+          last VALUEMATCH;
+        };
+      };
+    };
+  };
+  bin_data($self,%$bins);
   return $self
 }
 
