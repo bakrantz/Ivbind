@@ -90,6 +90,8 @@ sub open_experiment_file {
 #    processing by the module
 sub open_iv_table {
  my ($self, $iv_file, $conc_file) = @_;
+ die "No iv table file specified as first argument of open_iv_table method.\n" unless $iv_file;      
+ die "No concentration list file specified as second argument of open_iv_table method.\n" unless $conc_file;
  my ($cr, $t, $cm, $bin_index, $bins) = (chr(13).chr(10), chr(9), chr(44), 0, {});
  my $concs = []; #open conc data into array
  open(FH, "<$conc_file") or die; 
@@ -271,9 +273,12 @@ sub normalize {
      if ($conc > 0) { $logconc = log($conc)/log(10) } else { $logconc = '--' };
      my $fopen     = $i/$i_zero;
      my $fopen_err = sqrt(($ierr**2)*(1/($i_zero**2)) + ($i_zero_err**2)*(($i**2)/($i_zero**4)));
-     my $theta     = $fopen/(1-$fopen);
-     my $theta_err = sqrt(((1/(1-$fopen) + $fopen/((1-$fopen)**2))**2) * ($fopen_err**2));
-     my $logq_err  = sqrt( ($theta_err**2) / (($theta**2) * (log(10)**2)) );
+     my $theta     = undef;
+     if ($fopen == 1) { $theta = '--' } else { $theta = $fopen/(1-$fopen) };
+     my $theta_err = undef;
+     if ($fopen == 1) { $theta_err = '--' } else { $theta_err = sqrt(((1/(1-$fopen) + $fopen/((1-$fopen)**2))**2) * ($fopen_err**2)) };
+     my $logq_err  = undef;
+     if ($theta != 0) { $logq_err = sqrt( ($theta_err**2) / (($theta**2) * (log(10)**2)) ) } else { $logq_err = '--' };
      my $logq = undef;
      if ($theta > 0) { $logq = log($theta)/log(10) } else { $logq = '--' };
      $data{$key}{'LOGCONC'}  = $logconc;
