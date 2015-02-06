@@ -6,7 +6,7 @@
 ##############   Module to manipulate current-voltage binding experiments  ############
 #######################################################################################
 package Ivbind;
-$VERSION = "0.2";
+$VERSION = "0.21";
 ################################### THE CONSTRUCTOR ###################################
 sub new {
   my $proto                                 = shift;
@@ -60,6 +60,7 @@ sub new {
 #     14303016.atf,1000
 #
 #Open experiment file, e.g., exp.txt, to get table of ATF files and peptide concentrations for batch processing
+#Each ATF file is recorded as a strip chart where the voltages are scanned per analyte concentration
 sub open_experiment_file {
   use Hoh;
   my ($self, $exp_file, $delimiter) = @_;  
@@ -76,6 +77,51 @@ sub open_experiment_file {
   my %hoh = $exp_hoh -> hoh;
   experiment_data($self, %hoh);
   return $self
+}
+
+#Used to process Episodic Style data acquisition in pClamp
+#Allows the data to feed back into the processing pipeline 
+#iv_file is cut and pasted text from Excel spreadsheet which is tab delimited
+#   cols are: voltage curr1 currerr1 curr2 currerr2 etc. 
+#conc_file is space/tab delimited file: first col is concentrations, second
+#    col is file names
+#Exracts the data from the iv_table and transposes into the series of voltage bins
+#Saves the bins and enters the bins into the module's bin_data hash for further 
+#    processing by the module
+sub open_iv_table {
+ my ($self, $iv_file, $conc_file) = @_;
+ my ($cr, $t, $cm, $bin_index, $bins) = (chr(13).chr(10), chr(9), chr(44), 0, {});
+ my $concs = []; #open conc data into array
+ open(FH, "<$conc_file") or die; 
+   while (<FH>) { $_  =~ s/\s+$//; push @$concs, [ split("$t",$_) ] }; 
+ close(FH);
+ my $data = []; # Dump iv data into array of arrays
+ open(FH, "<$iv_file") or die; 
+   while (<FH>) { $_  =~ s/\s+$//; push @$data, [ split(/\s+/,$_) ] }; 
+ close(FH);
+ #Transpose and dump data into bins
+ foreach my $datarow (@$data) {
+   my $bin_key  = 'BIN'.$bin_index++;
+   my $bin_file = $bin_key.'.txt';
+   open(FHBIN, ">$bin_file") or die; 
+   print FHBIN 'CONC'.$cm.'I'.$cm.'IERR'.$cm.'V'.$cr;
+   my $voltage = $datarow -> [0];
+   my $ii = 0; 
+   while ($ii < @$concs) {
+     my $row_key = 'ROW'.$ii;
+     my $conc          = $concs   -> [$ii] -> [0]; #first column is concentrations 
+     my $current       = $datarow -> [2 * ($ii + 1) - 1];
+     my $current_error = $datarow -> [2 * ($ii + 1)];
+     $bins -> {$bin_key} -> {'ROW'.$ii}   -> {'V'}    = $voltage;
+     $bins -> {$bin_key} -> {'ROW'.$ii}   -> {'I'}    = $current;
+     $bins -> {$bin_key} -> {'ROW'.$ii}   -> {'IERR'} = $current_error;
+     $bins -> {$bin_key} -> {'ROW'.$ii++} -> {'CONC'} = $conc;
+     print FHBIN $conc.$cm.$current.$cm.$current_error.$cm.$voltage.$cr;
+   };
+   close(FHBIN);
+ };
+ bin_data($self, %$bins);
+ return $self
 }
 
 #requires a list of directories where the bins reside
